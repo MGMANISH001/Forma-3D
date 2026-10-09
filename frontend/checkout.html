@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Review your configured items and checkout — prices verified by the Django REST API.">
+  <title>Cart &amp; Checkout — FORMA3D</title>
+  <meta name="theme-color" content="#FAF7F2">
+  <script>/* apply saved theme before first paint (no flash) */(function(){var t;try{t=localStorage.getItem('forma3d_theme');}catch(e){}if(t!=='dark'&&t!=='light'){t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🧊</text></svg>">
+</head>
+<body>
+  <div data-header></div>
+
+  <main class="checkout container">
+    <h1>Cart &amp; checkout</h1>
+
+    <div class="checkout-layout" id="checkout-layout">
+      <!-- ============ CART ITEMS ============ -->
+      <section class="cart-col" aria-label="Cart items">
+        <div id="cart-items"><!-- filled by checkout.js --></div>
+      </section>
+
+      <!-- ============ SUMMARY + FORM ============ -->
+      <aside class="summary-col" aria-label="Order summary and delivery details">
+        <div class="summary-card">
+          <h2>Order summary</h2>
+          <div class="summary-rows" id="summary-rows">
+            <div class="summary-row"><span>Subtotal</span><span id="sum-subtotal">—</span></div>
+            <div class="summary-row"><span>Shipping</span><span id="sum-shipping">—</span></div>
+            <div class="summary-row summary-total"><span>Total</span><span id="sum-total">—</span></div>
+          </div>
+          <div class="ship-progress" id="ship-progress" hidden>
+            <div class="ship-progress-track"><div class="ship-progress-fill" id="ship-progress-fill"></div></div>
+            <p class="ship-progress-label" id="ship-progress-label"></p>
+          </div>
+          <p class="quote-note" id="quote-note">Prices are re-verified by the server on every change.</p>
+        </div>
+
+        <form class="delivery-card" id="checkout-form" novalidate>
+          <h2>Delivery details</h2>
+          <div class="field">
+            <label for="f-name">Full name</label>
+            <input id="f-name" name="customer_name" autocomplete="name" placeholder="Ada Lovelace" required>
+            <p class="field-error" data-error-for="f-name"></p>
+          </div>
+          <div class="field">
+            <label for="f-email">Email</label>
+            <input id="f-email" name="email" type="email" autocomplete="email" placeholder="ada@example.com" required>
+            <p class="field-error" data-error-for="f-email"></p>
+          </div>
+          <div class="field">
+            <label for="f-phone">Phone <span class="optional">optional</span></label>
+            <input id="f-phone" name="phone" type="tel" autocomplete="tel" placeholder="+1 555 010 2030">
+            <p class="field-error" data-error-for="f-phone"></p>
+          </div>
+          <div class="field">
+            <label for="f-address">Street address</label>
+            <input id="f-address" name="address" autocomplete="street-address" placeholder="12 analytic engine way" required>
+            <p class="field-error" data-error-for="f-address"></p>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="f-city">City</label>
+              <input id="f-city" name="city" autocomplete="address-level2" placeholder="London" required>
+              <p class="field-error" data-error-for="f-city"></p>
+            </div>
+            <div class="field">
+              <label for="f-postal">Postal code</label>
+              <input id="f-postal" name="postal_code" autocomplete="postal-code" placeholder="NW1 6XE" required>
+              <p class="field-error" data-error-for="f-postal"></p>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-country">Country</label>
+            <input id="f-country" name="country" autocomplete="country-name" placeholder="United Kingdom" required>
+            <p class="field-error" data-error-for="f-country"></p>
+          </div>
+          <div class="field">
+            <label for="f-note">Order note <span class="optional">optional</span></label>
+            <textarea id="f-note" name="note" rows="2" placeholder="Leave at reception…"></textarea>
+          </div>
+
+          <button class="btn btn-primary btn-block" id="btn-place-order" type="submit">
+            Place order
+          </button>
+          <p class="secure-note">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            Demo checkout — no payment is processed. Prices are computed server-side.
+          </p>
+        </form>
+      </aside>
+    </div>
+  </main>
+
+  <div data-footer></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/checkout.js"></script>
+</body>
+</html>

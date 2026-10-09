@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="The story behind FORMA3D — a portfolio project built with Django REST Framework, Three.js and vanilla JavaScript.">
+  <title>About this project — FORMA3D</title>
+  <meta name="theme-color" content="#FAF7F2">
+  <script>/* apply saved theme before first paint (no flash) */(function(){var t;try{t=localStorage.getItem('forma3d_theme');}catch(e){}if(t!=='dark'&&t!=='light'){t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🧊</text></svg>">
+</head>
+<body class="page-about">
+  <div data-header></div>
+
+  <main class="about">
+    <!-- ============ PAGE HERO ============ -->
+    <section class="about-hero">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="container about-hero-inner" data-reveal>
+        <p class="eyebrow">Portfolio project · Built to learn, made to show</p>
+        <h1>A storefront with a<br><em>glass engine room</em>.</h1>
+        <p class="about-lede">
+          FORMA3D is a personal project: a complete made-to-order e-commerce experience
+          where every product can be re-designed live in 3D. It exists so I could practice
+          real full-stack skills — API design, pricing logic, WebGL rendering and
+          responsive UI — and end up with something worth clicking through.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="/configurator/?product=aurora-lounge-chair">Try the configurator</a>
+          <a class="btn btn-ghost" href="/api/products/" target="_blank" rel="noopener">Inspect the API</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ STORY ============ -->
+    <section class="about-story">
+      <div class="container story-grid">
+        <div class="story-copy" data-reveal>
+          <h2>Why I built it</h2>
+          <p>
+            Most tutorial projects stop at a to-do list. I wanted the opposite: a project
+            with the messy, interesting problems of a real store — products made of
+            <strong>configurable parts</strong>, prices that must be computed and verified
+            on the server, and a shopping experience that has to feel good on a phone
+            held in one hand.
+          </p>
+          <p>
+            The 3D angle came from wanting to understand WebGL properly instead of treating
+            it as a black box. Every model in this shop — the lounge chair, the headphones,
+            even the candle flame — is <strong>generated procedurally in JavaScript</strong>.
+            No downloaded meshes, no model files: geometry built from primitives, lathes and
+            tori, then lit with PBR materials and a soft-box environment.
+          </p>
+          <p>
+            The constraint I set for myself: <strong>no frontend frameworks and no build
+            step</strong>. Plain HTML, hand-written CSS and vanilla JS talking to a Django
+            REST backend. If a recruiter opens the folder, every line is readable and every
+            file has a reason to exist.
+          </p>
+        </div>
+        <aside class="story-facts" data-reveal aria-label="Project quick facts">
+          <h3>Quick facts</h3>
+          <dl>
+            <div><dt>Stack</dt><dd>Django 6 · DRF · SQLite · Three.js r128</dd></div>
+            <div><dt>Frontend</dt><dd>Vanilla HTML/CSS/JS — zero npm dependencies</dd></div>
+            <div><dt>3D models</dt><dd>100% procedural, rendered via WebGL2</dd></div>
+            <div><dt>Architecture</dt><dd>One Django process serves API + storefront</dd></div>
+            <div><dt>Setup</dt><dd>Self-seeding demo — <code>python manage.py runserver</code> and it works</dd></div>
+            <div><dt>Purpose</dt><dd>CV / portfolio showcase &amp; hands-on practice</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ BY THE NUMBERS ============ -->
+    <section class="about-numbers">
+      <div class="container">
+        <h2 data-reveal>By the numbers</h2>
+        <dl class="numbers-grid">
+          <div class="number" data-reveal><dt id="stat-live-products">8</dt><dd>configurable products</dd></div>
+          <div class="number" data-reveal><dt id="stat-live-parts">21</dt><dd>configurable parts</dd></div>
+          <div class="number" data-reveal><dt id="stat-live-options">94</dt><dd>material &amp; finish options</dd></div>
+          <div class="number" data-reveal><dt>7</dt><dd>REST endpoints</dd></div>
+          <div class="number" data-reveal><dt>0</dt><dd>frontend dependencies</dd></div>
+          <div class="number" data-reveal><dt>1</dt><dd>process to run it all</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ============ TECH STACK ============ -->
+    <section class="about-stack">
+      <div class="container">
+        <div class="section-head" data-reveal>
+          <div>
+            <h2>The toolkit</h2>
+            <p class="section-sub">Chosen deliberately small — the point was to understand every layer, not to assemble one.</p>
+          </div>
+        </div>
+        <div class="stack-grid">
+          <article class="stack-card" data-reveal>
+            <h3>Django 6 + DRF</h3>
+            <p>Models, migrations, serializers, viewsets and validation. The catalog and orders apps expose a clean, filterable JSON API.</p>
+          </article>
+          <article class="stack-card" data-reveal>
+            <h3>Pricing engine</h3>
+            <p>A server-side module recomputes every quote: base price + per-part option deltas + engraving fee + shipping rules. The client never dictates a number.</p>
+          </article>
+          <article class="stack-card" data-reveal>
+            <h3>Three.js / WebGL</h3>
+            <p>Procedural geometry per product type, PBR material recipes, a PMREM environment for believable reflections, PCF soft shadows and orbit controls tuned for touch.</p>
+          </article>
+          <article class="stack-card" data-reveal>
+            <h3>Vanilla JS architecture</h3>
+            <p>Small single-purpose modules: API client, localStorage cart with change events, shared layout injection, one offscreen renderer that photographs products for thumbnails.</p>
+          </article>
+          <article class="stack-card" data-reveal>
+            <h3>CSS design system</h3>
+            <p>Design tokens, a warm minimal palette, a full dark theme, fluid type with <code>clamp()</code>, skeletons and reduced-motion support — all hand-written, ~1000 lines.</p>
+          </article>
+          <article class="stack-card" data-reveal>
+            <h3>SQLite + seeding</h3>
+            <p>A management command builds the whole demo catalog — products, parts, options, badges — so a fresh clone becomes a working store with one command.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WHAT IT DEMONSTRATES ============ -->
+    <section class="about-skills">
+      <div class="container skills-grid">
+        <div class="skills-copy" data-reveal>
+          <h2>What this project demonstrates</h2>
+          <p>
+            The skills below are the reason the project exists — each one is exercised by
+            real, working code in the repository, not by a bullet point. Open any file it
+            mentions and you will find the implementation.
+          </p>
+        </div>
+        <ul class="skills-list" data-reveal>
+          <li><strong>REST API design</strong> — resource-oriented endpoints, serializer validation, meaningful error payloads</li>
+          <li><strong>Trustworthy commerce logic</strong> — server-side quoting, order persistence, free-shipping thresholds</li>
+          <li><strong>3D graphics programming</strong> — procedural meshes, PBR materials, environment lighting, camera tweening</li>
+          <li><strong>State management without a framework</strong> — an event-driven cart, URL-driven product selection, theme persistence</li>
+          <li><strong>Responsive &amp; mobile UI</strong> — mobile-first layouts, sticky purchase bar, touch gestures, 390px to 1440px</li>
+          <li><strong>Accessibility practice</strong> — ARIA labels, focus-visible states, semantic HTML, reduced-motion paths</li>
+          <li><strong>Performance hygiene</strong> — offscreen WebGL thumbnails, disposed contexts, clamped pixel ratio, lazy reveal</li>
+          <li><strong>DX &amp; packaging</strong> — one-command bootstrap, self-seeding data, a README a stranger can follow</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ROADMAP ============ -->
+    <section class="about-roadmap">
+      <div class="container">
+        <h2 data-reveal>What I would build next</h2>
+        <ol class="roadmap" data-reveal>
+          <li class="road">
+            <span class="road-dot" aria-hidden="true"></span>
+            <div>
+              <h3>Server-side cart &amp; sessions</h3>
+              <p>Move the cart from localStorage into an authenticated Django model, with merge-on-login and per-session quoting.</p>
+            </div>
+          </li>
+          <li class="road">
+            <span class="road-dot" aria-hidden="true"></span>
+            <div>
+              <h3>GLTF export of a configuration</h3>
+              <p>Let customers download their exact configured model as a .glb file — Three.js exporter on top of the existing procedural builders.</p>
+            </div>
+          </li>
+          <li class="road">
+            <span class="road-dot" aria-hidden="true"></span>
+            <div>
+              <h3>Real reviews &amp; search</h3>
+              <p>Replace the demo testimonials with a Review model, add full-text search and rating aggregates computed in the API.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="about-cta">
+      <div class="container about-cta-inner" data-reveal>
+        <h2>The best way to review it is to use it.</h2>
+        <p>Open a product, turn it around, make it yours — then watch the API recalculate everything behind the scenes.</p>
+        <a class="btn btn-primary" href="/#shop">Browse the collection</a>
+      </div>
+    </section>
+  </main>
+
+  <div data-footer></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/home.js"></script>
+</body>
+</html>
