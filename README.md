@@ -328,3 +328,71 @@ curl -X POST http://127.0.0.1:3000/api/orders/ \
 - GLTF model upload per product (admin-managed)
 - Server-side cart with DRF + session auth
 - Dockerfile + gunicorn for deployment
+
+---
+
+## Deploy it free — PythonAnywhere (step by step)
+
+> Why not Vercel/Netlify? Those are JavaScript/serverless platforms — they cannot
+> host a long-running Django server. PythonAnywhere hosts Django natively on the
+> free plan and gives you a live URL like `https://YOURNAME.pythonanywhere.com`.
+
+**1. Sign up** at [pythonanywhere.com](https://www.pythonanywhere.com) (free "Beginner" plan).
+Your username becomes your URL: `YOURNAME.pythonanywhere.com`.
+
+**2. Get the code there** — *Consoles → Bash*:
+
+```bash
+git clone https://github.com/YOURNAME/forma3d.git
+```
+
+(No GitHub yet? *Files* tab → Upload the project zip → `unzip FORMA3D-project.zip -d forma3d`)
+
+**3. Create the environment + install** — in the same Bash console:
+
+```bash
+mkvirtualenv forma3d --python=python3.13
+cd forma3d
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_demo
+python manage.py collectstatic        # answer 'yes'
+python manage.py changepassword admin # pick a NEW password before going public
+```
+
+**4. Create the web app** — *Web tab → Add New Web App → next →
+**Manual Configuration** → Python 3.13 → next*.
+
+**5. Point it at your code** — still in the *Web* tab:
+
+- **Code → WSGI configuration file**: open it, delete everything, paste
+  (replace both `YOURNAME`):
+
+  ```python
+  import os
+  import sys
+
+  path = '/home/YOURNAME/forma3d'
+  if path not in sys.path:
+      sys.path.insert(0, path)
+
+  os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'
+
+  from django.core.wsgi import get_wsgi_application
+  application = get_wsgi_application()
+  ```
+
+- **Code → Working directory**: `/home/YOURNAME/forma3d`
+- **Virtualenv**: enter → `/home/YOURNAME/.virtualenvs/forma3d`
+- **Static files → Add mapping**: URL `/static/` → Directory `/home/YOURNAME/forma3d/staticfiles`
+
+**6. Hit the big green Reload button** and open `https://YOURNAME.pythonanywhere.com`.
+
+**Troubleshooting**
+
+| Symptom | Fix |
+|---|---|
+| Something went wrong (error page) | *Web → Error log (100 lines tail)* — the traceback tells you what's missing |
+| Admin looks unstyled | static mapping missing/typo in step 5 → fix path, Reload |
+| `ModuleNotFoundError: django` | Virtualenv path wrong — check step 5, then Reload |
+| Code updated but site is old | push to GitHub → Bash: `git pull` → green **Reload** |
