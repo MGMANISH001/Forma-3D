@@ -382,6 +382,8 @@ class Command(BaseCommand):
             Part.objects.all().delete()
             Product.objects.all().delete()
 
+        self._ensure_superuser()
+
         if Product.objects.exists():
             self.stdout.write(self.style.WARNING(
                 f'Catalog already seeded ({Product.objects.count()} products). Use --force to reseed.'))
@@ -395,3 +397,15 @@ class Command(BaseCommand):
                 f"{sum(p.options.count() for p in product.parts.all())} options)"))
 
         self.stdout.write(self.style.SUCCESS('Done.'))
+
+    def _ensure_superuser(self):
+        """Guarantee a working admin panel on manual installs (no start.sh):
+        create the demo superuser admin / admin1234 if it does not exist yet."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if not User.objects.filter(username='admin').exists():
+            User.objects.create_superuser('admin', 'admin@example.com', 'admin1234')
+            self.stdout.write(self.style.SUCCESS(
+                'Created superuser admin / admin1234 — change the password before going public!'))
+        else:
+            self.stdout.write('Superuser admin exists.')
