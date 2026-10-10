@@ -32,6 +32,12 @@ frontend framework, no build step, no Node.js required.
 **3D Configurator (Three.js / WebGL)**
 - 8 procedurally-built 3D products — lounge chair, ceramic mug, steel bottle, desk lamp,
   studio headphones, wall clock, ceramic vase, scented candle — zero external 3D assets
+- **Procedural PBR textures** (`textures.js`): canvas-painted weave, grain, pores,
+  brushed metal and glaze maps (color + bump + roughness in one grayscale pass, tinted
+  live by any option color) — plus clearcoat ceramic/glass via MeshPhysicalMaterial
+- **GSAP animations** (vendored locally, no CDN): hero intro timeline, ScrollTrigger
+  scroll reveals, stat count-ups, camera dolly-in + model scale pop, panel cascade
+  and an elastic retint pulse — all honoring `prefers-reduced-motion`
 - Real-time color / material / finish switching across configurable parts (seat, frame, base, glaze, shade…)
 - 8 physically-based material recipes (fabric, leather, metal, wood, ceramic, glass, rubber…)
 - Procedural studio environment map baked with PMREM for realistic PBR reflections

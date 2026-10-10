@@ -25,6 +25,7 @@
     engraving: '',
     quantity: 1,
   };
+  let baseScale = 1;   // normalized model scale — reference for GSAP intro & retint pulse
 
   /* ================= load product ================= */
   const params = new URLSearchParams(location.search);
@@ -116,8 +117,26 @@
     model = ModelFactory.normalize(ModelFactory.build(product.model_type), 1.15);
     ModelFactory.applyConfiguration(model, state.selection);
     scene.add(model);
+    baseScale = model.scale.x;
 
     fitCamera();
+
+    /* ---- GSAP intro: radial camera dolly + model scale pop (boot only).
+         Radial from the orbit target = always inside min/max distance. -- */
+    if (window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const offset = initialCam.clone().sub(initialTarget).multiplyScalar(1.45);
+      camera.position.copy(initialTarget).add(offset);
+      gsap.to(camera.position, {
+        x: initialCam.x, y: initialCam.y, z: initialCam.z,
+        duration: 1.6, ease: 'power3.out', onUpdate: () => controls.update(),
+      });
+      model.scale.setScalar(baseScale * 0.001);
+      gsap.to(model.scale, {
+        x: baseScale, y: baseScale, z: baseScale,
+        duration: 1.0, delay: 0.2, ease: 'back.out(1.4)',
+      });
+      gsap.from(canvas, { opacity: 0, duration: 0.8, ease: 'power2.out' });
+    }
   } catch (err) {
     // WebGL unavailable — the panel still works, just without 3D.
     loaderEl.classList.add('hide');
@@ -416,7 +435,16 @@
           .find((o) => String(o.id) === btn.dataset.option);
         if (!option) return;
         state.selection[partKey] = option;
-        if (model) ModelFactory.applyOption(model, partKey, option);
+        if (model) {
+          ModelFactory.applyOption(model, partKey, option);
+          /* tactile feedback: the whole model pulses once on every retint */
+          if (window.gsap && !REDUCED_MOTION) {
+            gsap.fromTo(model.scale,
+              { x: baseScale * 1.05, y: baseScale * 1.05, z: baseScale * 1.05 },
+              { x: baseScale, y: baseScale, z: baseScale, duration: 0.65,
+                ease: 'elastic.out(1, 0.4)', overwrite: 'auto' });
+          }
+        }
         // update selected styles within this part only
         btn.parentElement.querySelectorAll('.opt').forEach((b) => {
           const on = b === btn;
@@ -452,6 +480,13 @@
     });
 
     refreshPricing();
+
+    /* ---- panel entrance cascade (runs once at boot) ---- */
+    if (window.gsap && !REDUCED_MOTION) {
+      gsap.from(panelScroll.children, {
+        y: 24, opacity: 0, duration: 0.5, stagger: 0.05, ease: 'power2.out', clearProps: 'all',
+      });
+    }
   }
 
   /* ================= add to cart ================= */

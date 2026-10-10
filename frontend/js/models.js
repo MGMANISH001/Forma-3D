@@ -1,6 +1,14 @@
 /* ==========================================================================
    models.js — procedural 3D product models (Three.js r128, no external assets)
 
+   GEOMETRY RULES (v2 — "showroom build"):
+   1. Every product stands exactly on y=0 — no floating parts.
+   2. Every joint is real: posts embed INTO rails, cushions rest ON frames,
+      handles/grabs overlap the body wall. No visual gaps, no mixed concepts.
+   3. Reference silhouettes from real products: mid-century 4-leg lounge chair,
+      stoneware café mug, vacuum bottle, task lamp, wired headphones on a
+      display stand, stem desk clock, pedestal vase, glass jar candle.
+
    Every visible mesh is tagged with userData.partKey matching the Django
    `Part.key` values, so the configurator can retint parts by key:
 
@@ -15,32 +23,44 @@
 
    Meshes may also carry userData.partSlot:
      'primary'   -> option.color
-     'secondary' -> option.color2 (two-tone finishes, e.g. marble)
+     'secondary' -> option.color2 (two-tone finishes)
+
+   Untagged meshes (candle flame, headphone stand, bulb) are fixed props the
+   configurator never retints.
    ========================================================================== */
 
 const ModelFactory = (() => {
 
-  /* ---- material recipes per material kind (matches Django Material choices) */
+  /* ---- material recipes per material kind (matches Django Material choices)
+     Ceramic/glass/wood upgrade to MeshPhysicalMaterial for a real clearcoat
+     (glaze / polish / lacquer) — the biggest single realism win in r128.   */
   const RECIPES = {
-    fabric:  { roughness: 0.96, metalness: 0.00 },
-    leather: { roughness: 0.52, metalness: 0.04 },
-    plastic: { roughness: 0.34, metalness: 0.05 },
-    metal:   { roughness: 0.26, metalness: 0.88 },
-    wood:    { roughness: 0.58, metalness: 0.00 },
-    ceramic: { roughness: 0.22, metalness: 0.05 },
-    glass:   { roughness: 0.08, metalness: 0.10, transparent: true, opacity: 0.5 },
-    rubber:  { roughness: 0.92, metalness: 0.00 },
+    fabric:  { roughness: 0.93, metalness: 0.00 },
+    leather: { roughness: 0.44, metalness: 0.02 },
+    plastic: { roughness: 0.34, metalness: 0.03 },
+    metal:   { roughness: 0.16, metalness: 1.00 },
+    wood:    { roughness: 0.50, metalness: 0.00, physical: true, clearcoat: 0.30, clearcoatRoughness: 0.35 },
+    ceramic: { roughness: 0.16, metalness: 0.02, physical: true, clearcoat: 0.65, clearcoatRoughness: 0.18 },
+    glass:   { roughness: 0.05, metalness: 0.05, transparent: true, opacity: 0.35,
+               physical: true, clearcoat: 1.0, clearcoatRoughness: 0.04 },
+    rubber:  { roughness: 0.95, metalness: 0.00 },
   };
 
   function makeMaterial(kind, hex) {
     const r = RECIPES[kind] || RECIPES.plastic;
-    const m = new THREE.MeshStandardMaterial({
+    const Ctor = r.physical ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+    const m = new Ctor({
       roughness: r.roughness,
       metalness: r.metalness,
       transparent: !!r.transparent,
       opacity: r.opacity !== undefined ? r.opacity : 1,
     });
+    if (r.physical) {
+      m.clearcoat = r.clearcoat;
+      m.clearcoatRoughness = r.clearcoatRoughness;
+    }
     m.color.set(hex).convertSRGBToLinear();
+    if (typeof TexFactory !== 'undefined') TexFactory.decorate(kind, m);   // procedural maps (textures.js)
     m.userData.kind = kind;
     return m;
   }
@@ -53,7 +73,14 @@ const ModelFactory = (() => {
     return mesh;
   }
 
-  /* cylinder stretched between two Vector3 points (for arms / legs) */
+  /* prop meshes (never retinted) still cast + receive shadows */
+  function prop(mesh) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  /* cylinder stretched between two Vector3 points (for legs / arms / posts) */
   function cylinderBetween(a, b, radius, material, radialSegments = 20) {
     const dir = new THREE.Vector3().subVectors(b, a);
     const geo = new THREE.CylinderGeometry(radius, radius, dir.length(), radialSegments);
@@ -66,56 +93,75 @@ const ModelFactory = (() => {
     return mesh;
   }
 
-  /* ================= CHAIR — seat | back | frame | base ================= */
+  /* ================= CHAIR — seat | back | frame | base =================
+     Mid-century lounge chair. Structure (all joints overlap):
+       4 splayed metal legs  -> embedded into the corner of the seat apron
+       apron rails (frame)   -> carry the seat cushion on their top face
+       2 rear stiles (frame) -> rise out of the rear rail, lean back
+       back panel   (back)   -> mounted between the two stiles
+       2 armrests   (frame)  -> tail ends buried in the stiles, front posts
+       2 front posts (frame) -> stand on the side rails, hold the armrests   */
   function buildChair() {
     const g = new THREE.Group();
-    const M = (hex) => makeMaterial('fabric', hex);
-
-    // Seat cushion
-    const seat = tag(new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.14, 0.60, 2, 2, 2), M('#EDE4D3')), 'seat');
-    seat.position.set(0, 0.45, 0.02);
-    // Slightly rounded look: bevel via scaled edges is skipped — keep crisp box.
-    g.add(seat);
-
-    // Backrest (tilted)
-    const back = tag(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.55, 0.12), M('#EDE4D3')), 'back');
-    back.position.set(0, 0.80, -0.25);
-    back.rotation.x = -0.16;
-    g.add(back);
-
-    // Wooden frame: two side panels + armrests + back stiles
+    const seatMat = () => makeMaterial('fabric', '#EDE4D3');
     const frameMat = makeMaterial('wood', '#C89B6A');
-    [-1, 1].forEach((s) => {
-      const panel = tag(new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.34, 0.58), frameMat), 'frame');
-      panel.position.set(s * 0.315, 0.28, 0.02);
-      const arm = tag(new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.045, 0.50), frameMat), 'frame');
-      arm.position.set(s * 0.315, 0.60, 0.05);
-      const stile = tag(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.62, 0.05), frameMat), 'frame');
-      stile.position.set(s * 0.30, 0.72, -0.30);
-      stile.rotation.x = -0.16;
-      g.add(panel, arm, stile);
+    const legMat = makeMaterial('metal', '#9DA3A8');
+
+    /* ---- base: 4 splayed legs + floor glides ---- */
+    [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([sx, sz]) => {
+      const leg = tag(cylinderBetween(
+        new THREE.Vector3(sx * 0.235, 0.375, sz * 0.19),    // top — inside apron corner
+        new THREE.Vector3(sx * 0.295, 0.006, sz * 0.26),    // bottom — splayed out
+        0.023, legMat, 16
+      ), 'base');
+      const glide = tag(new THREE.Mesh(new THREE.SphereGeometry(0.024, 14, 10), legMat), 'base');
+      glide.position.set(sx * 0.295, 0.012, sz * 0.26);
+      g.add(leg, glide);
     });
 
-    // Swivel base: column + 4 star legs + casters
-    const steelMat = makeMaterial('metal', '#9DA3A8');
-    const column = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.030, 0.038, 0.30, 24), steelMat), 'base');
-    column.position.set(0, 0.16, 0.02);
-    g.add(column);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-      const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-      const leg = tag(
-        cylinderBetween(
-          dir.clone().multiplyScalar(0.06).setY(0.06),
-          dir.clone().multiplyScalar(0.30).setY(0.012),
-          0.022, steelMat
-        ),
-        'base'
-      );
-      const caster = tag(new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), steelMat), 'base');
-      caster.position.copy(dir).multiplyScalar(0.31).setY(0.024);
-      g.add(leg, caster);
-    }
+    /* ---- frame: seat apron (4 rails) ---- */
+    const apron = [
+      [0.52, 0.055, 0.05, 0, 0.36, 0.205],    // front rail
+      [0.52, 0.055, 0.05, 0, 0.36, -0.205],   // rear rail
+      [0.05, 0.055, 0.46, 0.235, 0.36, 0],    // side rails
+      [0.05, 0.055, 0.46, -0.235, 0.36, 0],
+    ];
+    apron.forEach(([w, h, d, x, y, z]) => {
+      const rail = tag(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), frameMat), 'frame');
+      rail.position.set(x, y, z);
+      g.add(rail);
+    });
+
+    /* ---- frame: rear stiles (lean BACK: rotation.x is negative so the top
+       goes toward -z. Bottom end lands dead-center inside the rear rail.) -- */
+    [-1, 1].forEach((s) => {
+      const stile = tag(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.64, 0.06), frameMat), 'frame');
+      stile.position.set(s * 0.235, 0.677, -0.25);
+      stile.rotation.x = -0.14;
+      g.add(stile);
+    });
+
+    /* ---- seat cushion: rests exactly on the apron top (y=0.3875) ---- */
+    const seat = tag(new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.15, 0.55, 2, 2, 2), seatMat()), 'seat');
+    seat.position.set(0, 0.4625, 0.005);
+    g.add(seat);
+
+    /* ---- back panel: SAME lean as the stiles, side edges buried 10mm into
+       them, bottom end fully inside the cushion volume (no gap, no float) -- */
+    const back = tag(new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.52, 0.10), seatMat()), 'back');
+    back.position.set(0, 0.72, -0.236);
+    back.rotation.x = -0.14;
+    g.add(back);
+
+    /* ---- frame: armrests + their front posts ---- */
+    [-1, 1].forEach((s) => {
+      const arm = tag(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.46), frameMat), 'frame');
+      arm.position.set(s * 0.235, 0.72, -0.045);            // tail reaches z=-0.275 → into the stile
+      const post = tag(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.35, 0.05), frameMat), 'frame');
+      post.position.set(s * 0.235, 0.545, 0.155);           // stands on side rail, top inside the arm
+      g.add(arm, post);
+    });
+
     return g;
   }
 
@@ -123,7 +169,7 @@ const ModelFactory = (() => {
   function buildMug() {
     const g = new THREE.Group();
 
-    // Body (slight taper)
+    // Body (slight taper, stands on y=0)
     const body = tag(
       new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.295, 0.82, 44), makeMaterial('ceramic', '#D9C7B2')),
       'body'
@@ -141,36 +187,43 @@ const ModelFactory = (() => {
     bottom.position.y = 0.06;
     g.add(wall, bottom);
 
-    // Handle (C-shaped arc, gap facing the mug)
-    const handle = tag(new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.052, 18, 36, Math.PI * 1.3), makeMaterial('ceramic', '#D9C7B2')), 'handle');
-    handle.position.set(0.47, 0.42, 0);
-    handle.rotation.z = Math.PI * 1.4;
+    /* Handle: half-torus whose two ends are buried inside the body wall.
+       Ends at x=0.28 (body radius there ≈ 0.31–0.33) → fully embedded. */
+    const handle = tag(
+      new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.055, 18, 36, Math.PI), makeMaterial('ceramic', '#D9C7B2')),
+      'handle'
+    );
+    handle.position.set(0.28, 0.44, 0);
+    handle.rotation.z = -Math.PI / 2;   // opening faces the mug, bulge outward
     g.add(handle);
     return g;
   }
 
-  /* ================= BOTTLE — body | lid | bumper ================= */
+  /* ================= BOTTLE — body | lid | bumper =================
+     Vacuum bottle: straight shell → tapered shoulder → lid screwed on
+     top with a carry loop. Lid sits ON the shoulder (no buried parts). */
   function buildBottle() {
     const g = new THREE.Group();
 
-    const bodyMat = makeMaterial('metal', '#E8E9E4');
+    const bodyMat = makeMaterial('metal', '#C9CDD2');
     const shell = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.295, 0.285, 0.95, 44), bodyMat), 'body');
     shell.position.y = 0.475;
-    const dome = tag(new THREE.Mesh(new THREE.SphereGeometry(0.295, 44, 20, 0, Math.PI * 2, 0, Math.PI / 2), bodyMat), 'body');
-    dome.position.y = 0.95;
-    g.add(shell, dome);
+    const shoulder = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.295, 0.20, 44), bodyMat), 'body');
+    shoulder.position.y = 1.05;
+    g.add(shell, shoulder);
 
-    // Lid + carry loop
-    const lidMat = makeMaterial('plastic', '#E8E9E4');
-    const lid = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.26, 0.17, 36), lidMat), 'lid');
-    lid.position.y = 1.03;
+    // Lid on the shoulder top + standing carry loop
+    const lidMat = makeMaterial('plastic', '#3A3D42');
+    const lid = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.175, 0.15, 36), lidMat), 'lid');
+    lid.position.y = 1.225;
+    const capTop = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.14, 0.025, 36), lidMat), 'lid');
+    capTop.position.y = 1.312;
     const loop = tag(new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.02, 14, 30), lidMat), 'lid');
-    loop.position.set(0.19, 1.115, 0);
-    loop.rotation.x = Math.PI / 2;
-    g.add(lid, loop);
+    loop.position.set(0.10, 1.375, 0);
+    g.add(lid, capTop, loop);
 
-    // Silicone bumper ring
-    const bumperMat = makeMaterial('rubber', '#D8D8D4');
+    // Silicone bumper ring around the base
+    const bumperMat = makeMaterial('rubber', '#4A4D52');
     const bumper = tag(new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.032, 16, 44), bumperMat), 'bumper');
     bumper.rotation.x = Math.PI / 2;
     bumper.position.y = 0.07;
@@ -178,23 +231,26 @@ const ModelFactory = (() => {
     return g;
   }
 
-  /* ================= LAMP — shade | arm | base ================= */
+  /* ================= LAMP — shade | arm | base =================
+     Task lamp: weighted base plate → two-piece articulated arm (elbow +
+     wrist spheres) → capped spun shade. The wrist sphere sits inside the
+     shade's top cap, so arm and shade are physically joined.               */
   function buildLamp() {
     const g = new THREE.Group();
 
-    // Weighted base plate (+ secondary top disk for two-tone marble)
-    const baseMat = makeMaterial('wood', '#9A9C9E');
+    // Weighted base plate (+ secondary top disk for two-tone finishes)
+    const baseMat = makeMaterial('metal', '#9A9C9E');
     const plate = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.36, 0.06, 44), baseMat), 'base');
     plate.position.y = 0.03;
-    const plateTopMat = makeMaterial('wood', '#DADADA');
+    const plateTopMat = makeMaterial('metal', '#DADADA');
     const plateTop = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.018, 44), plateTopMat), 'base', 'secondary');
     plateTop.position.y = 0.068;
     g.add(plate, plateTop);
 
     const armMat = makeMaterial('metal', '#3A3C40');
     const jointA = new THREE.Vector3(0, 0.07, -0.10);
-    const jointB = new THREE.Vector3(0, 0.62, 0.02);   // elbow
-    const jointC = new THREE.Vector3(0, 0.55, 0.34);   // wrist above the shade
+    const jointB = new THREE.Vector3(0, 0.62, 0.02);    // elbow
+    const jointC = new THREE.Vector3(0, 0.55, 0.34);    // wrist, above the shade
     const lower = tag(cylinderBetween(jointA, jointB, 0.024, armMat), 'arm');
     const elbow = tag(new THREE.Mesh(new THREE.SphereGeometry(0.036, 18, 14), armMat), 'arm');
     elbow.position.copy(jointB);
@@ -203,61 +259,77 @@ const ModelFactory = (() => {
     wrist.position.copy(jointC);
     g.add(lower, elbow, upper, wrist);
 
-    // Spun reflector shade (openEnded, DoubleSide) + emissive bulb
+    /* Spun reflector shade, slightly tilted, opening downward-forward.
+       Top cap closes the cone where the arm enters. */
+    const shadeTilt = 0.10;
     const shadeMat = makeMaterial('metal', '#EFEDE6');
     shadeMat.side = THREE.DoubleSide;
     const shade = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.30, 0.27, 40, 1, true), shadeMat), 'shade');
-    shade.position.set(0, 0.40, 0.36);
-    shade.rotation.x = Math.PI * 0.92;
-    const bulb = new THREE.Mesh(
-      new THREE.SphereGeometry(0.05, 18, 14),
+    shade.position.set(0, 0.415, 0.355);
+    shade.rotation.x = shadeTilt;
+    const cap = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.126, 0.126, 0.014, 40), shadeMat), 'shade');
+    cap.position.set(0, 0.548, 0.369);
+    cap.rotation.x = shadeTilt;
+    const bulb = prop(new THREE.Mesh(
+      new THREE.SphereGeometry(0.045, 18, 14),
       new THREE.MeshStandardMaterial({ color: 0xFFE3B0, emissive: 0xFFC46B, emissiveIntensity: 1.4 })
-    );
-    bulb.position.set(0, 0.415, 0.355);
-    g.add(shade, bulb);
+    ));
+    bulb.position.set(0, 0.415, 0.348);
+    g.add(shade, cap, bulb);
     return g;
   }
 
-  /* ================= HEADPHONES — cups | band | cushions ================= */
+  /* ============ HEADPHONES — cups | band | cushions (+ fixed stand) ============
+     Wired-style headphones hanging on a display stand:
+       band = half-torus; its ends are buried inside the cup shells
+       cups raised so the band ends land inside the shell volume
+       stand (base plate + post + crossbar) is an untagged prop the band
+       rests on — the classic product-photo presentation.                   */
   function buildHeadphones() {
     const g = new THREE.Group();
 
-    // Headband: half-torus arching over the top (xy-plane, +y up)
     const bandMat = makeMaterial('metal', '#3A3C40');
-    const band = tag(new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.045, 20, 60, Math.PI), bandMat), 'band');
-    band.position.y = 0.42;
+    const band = tag(new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.050, 20, 60, Math.PI), bandMat), 'band');
+    band.position.y = 0.40;
     g.add(band);
 
     [-1, 1].forEach((s) => {
-      // Slider / yoke connecting band end to cup top
-      const yoke = tag(cylinderBetween(
-        new THREE.Vector3(s * 0.52, 0.42, 0),
-        new THREE.Vector3(s * 0.545, 0.40, 0),
-        0.018, bandMat
-      ), 'band');
-      g.add(yoke);
-
-      // Ear cup shell (axis along x) + outer trim ring
-      const cupMat = makeMaterial('metal', '#2A2C30');
+      // Ear cup shell (axis along x); band end (±0.52, 0.40) is inside this volume
+      const cupMat = makeMaterial('plastic', '#2A2C30');
       const cup = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.225, 0.13, 36), cupMat), 'cups');
       cup.rotation.z = Math.PI / 2;
-      cup.position.set(s * 0.545, 0.30, 0);
+      cup.position.set(s * 0.545, 0.36, 0);
       const trim = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.02, 36), cupMat), 'cups');
       trim.rotation.z = Math.PI / 2;
-      trim.position.set(s * (0.545 + 0.075), 0.30, 0);
+      trim.position.set(s * 0.62, 0.36, 0);
       g.add(cup, trim);
 
-      // Cushion pad on the inner face
+      // Cushion pad on the inner face, overlapping the shell
       const cushMat = makeMaterial('leather', '#D9CFC0');
       const pad = tag(new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.055, 16, 36), cushMat), 'cushions');
       pad.rotation.y = Math.PI / 2;
-      pad.position.set(s * 0.47, 0.30, 0);
+      pad.position.set(s * 0.472, 0.36, 0);
       g.add(pad);
     });
+
+    /* ---- display stand (fixed prop, never retinted) ----
+       Single stub stand: the band rests in a saddle cap on top of the post,
+       exactly like real headphone display stands. */
+    const standMat = makeMaterial('metal', '#2E3033');
+    const basePlate = prop(new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.34, 0.035, 40), standMat));
+    basePlate.position.set(0, 0.0175, 0);
+    const post = prop(cylinderBetween(
+      new THREE.Vector3(0, 0.03, 0), new THREE.Vector3(0, 0.868, 0), 0.022, standMat
+    ));
+    const saddle = prop(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.035, 0.024, 20), standMat));
+    saddle.position.set(0, 0.878, 0);
+    g.add(basePlate, post, saddle);
     return g;
   }
 
-  /* ================= CLOCK — face | ring | hands ================= */
+  /* ================= CLOCK — face | ring | hands =================
+     Stem desk clock: round head on a straight rear post. The post top is
+     buried inside the dial disc, the post foot inside the base plate.      */
   function buildClock() {
     const g = new THREE.Group();
 
@@ -265,10 +337,9 @@ const ModelFactory = (() => {
     const faceMat = makeMaterial('plastic', '#F2EEE6');
     const handsMat = makeMaterial('metal', '#3A3C40');
 
-    /* Clock head, raised on its stand (dial face on the xz→xy plane) */
+    /* Clock head (dial face on the xy plane) */
     const head = new THREE.Group();
-    head.position.y = 0.55;
-    head.rotation.x = -0.05; // gentle desk-clock lean-back
+    head.position.set(0, 0.60, -0.115);
 
     const dial = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.40, 0.06, 48), faceMat), 'face');
     dial.rotation.x = Math.PI / 2;
@@ -302,12 +373,12 @@ const ModelFactory = (() => {
 
     g.add(head);
 
-    // Desk stand: rear post + foot plate
+    /* Desk stand: straight rear post embedded in dial + base plate */
     const post = tag(cylinderBetween(
-      new THREE.Vector3(0, 0.05, -0.17), new THREE.Vector3(0, 0.56, -0.07), 0.024, ringMat
+      new THREE.Vector3(0, 0.03, -0.12), new THREE.Vector3(0, 0.60, -0.12), 0.026, ringMat
     ), 'ring');
     const foot = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.115, 0.035, 32), ringMat), 'ring');
-    foot.position.set(0, 0.0175, -0.18);
+    foot.position.set(0, 0.0175, -0.12);
     g.add(post, foot);
     return g;
   }
@@ -316,25 +387,27 @@ const ModelFactory = (() => {
   function buildVase() {
     const g = new THREE.Group();
 
+    /* Pedestal foot — wider than the body base, so the profile visibly
+       emerges out of the foot ring (real thrown-vase silhouette). */
+    const foot = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.215, 0.05, 40), makeMaterial('ceramic', '#B08A6A')), 'foot');
+    foot.position.y = 0.025;
+    g.add(foot);
+
     // Curved profile lathe (r, y), ceramic with visible inner wall
     const profile = [
-      [0.001, 0.02], [0.14, 0.02], [0.19, 0.05], [0.225, 0.12], [0.23, 0.20],
-      [0.195, 0.30], [0.13, 0.38], [0.10, 0.45], [0.10, 0.52], [0.125, 0.57], [0.15, 0.60],
+      [0.001, 0.045], [0.15, 0.045], [0.19, 0.07], [0.225, 0.14], [0.23, 0.22],
+      [0.195, 0.32], [0.13, 0.40], [0.10, 0.47], [0.10, 0.54], [0.125, 0.59], [0.148, 0.62],
     ].map((p) => new THREE.Vector2(p[0], p[1]));
     const bodyMat = makeMaterial('ceramic', '#D9C7B2');
     bodyMat.side = THREE.DoubleSide;
-    const body = tag(new THREE.Mesh(new THREE.LatheGeometry(profile, 48), bodyMat), 'body');
+    const body = tag(new THREE.Mesh(new THREE.LatheGeometry(profile, 64), bodyMat), 'body');
     g.add(body);
 
     const lipMat = makeMaterial('ceramic', '#D9C7B2');
-    const lip = tag(new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.02, 14, 44), lipMat), 'lip');
+    const lip = tag(new THREE.Mesh(new THREE.TorusGeometry(0.148, 0.022, 14, 44), lipMat), 'lip');
     lip.rotation.x = Math.PI / 2;
-    lip.position.y = 0.60;
+    lip.position.y = 0.62;
     g.add(lip);
-
-    const foot = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.165, 0.04, 40), makeMaterial('ceramic', '#B08A6A')), 'foot');
-    foot.position.y = 0.02;
-    g.add(foot);
     return g;
   }
 
@@ -342,37 +415,39 @@ const ModelFactory = (() => {
   function buildCandle() {
     const g = new THREE.Group();
 
-    // Glass vessel (transparent, no solid shadow)
+    // Glass vessel standing on y=0. FrontSide only — rendering the inner
+    // wall too made the far side read as dark smoked glass.
     const jarMat = makeMaterial('glass', '#EAF2F0');
-    jarMat.side = THREE.DoubleSide;
+    jarMat.side = THREE.FrontSide;
+    jarMat.opacity = 0.22;
     const jar = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.25, 0.44, 40), jarMat), 'jar');
-    jar.position.y = 0.24;
+    jar.position.y = 0.22;
     jar.castShadow = false;
     g.add(jar);
 
     // Wax fill visible through the glass
-    const wax = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.21, 0.34, 36), makeMaterial('ceramic', '#F2EAD9')), 'wax');
-    wax.position.y = 0.20;
+    const wax = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.205, 0.36, 36), makeMaterial('ceramic', '#F2EAD9')), 'wax');
+    wax.position.y = 0.19;
     g.add(wax);
 
-    // Wick + glow (fixed, not configurable)
-    const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.05, 8),
-      new THREE.MeshStandardMaterial({ color: 0x2A2521, roughness: 1 }));
+    // Wick + warm flame (fixed, not configurable)
+    const wick = prop(new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.05, 8),
+      new THREE.MeshStandardMaterial({ color: 0x2A2521, roughness: 1 })));
     wick.position.y = 0.395;
-    const flame = new THREE.Mesh(
-      new THREE.SphereGeometry(0.03, 14, 12),
-      new THREE.MeshStandardMaterial({ color: 0xFFC46B, emissive: 0xFF9D2E, emissiveIntensity: 1.8 })
-    );
-    flame.scale.set(0.75, 1.7, 0.75);
-    flame.position.y = 0.455;
+    const flame = prop(new THREE.Mesh(
+      new THREE.SphereGeometry(0.024, 14, 12),
+      new THREE.MeshStandardMaterial({ color: 0xFF9A3C, emissive: 0xFF7A00, emissiveIntensity: 2.4 })
+    ));
+    flame.scale.set(0.7, 1.9, 0.7);
+    flame.position.y = 0.44;
     g.add(wick, flame);
 
     // Metal lid resting beside the jar
     const lidMat = makeMaterial('metal', '#C9A86A');
-    const lid = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.05, 36), lidMat), 'lid');
-    lid.position.set(0.46, 0.05, 0.10);
-    const knob = tag(new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), lidMat), 'lid');
-    knob.position.set(0.46, 0.095, 0.10);
+    const lid = tag(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.052, 36), lidMat), 'lid');
+    lid.position.set(0.46, 0.026, 0.10);
+    const knob = tag(new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), lidMat), 'lid');
+    knob.position.set(0.46, 0.072, 0.10);
     g.add(lid, knob);
     return g;
   }

@@ -177,7 +177,7 @@
     });
   }
 
-  /* ---- 6. hero stats + scroll reveal for the steps ---- */
+  /* ---- 6. hero stats (home.js listens for 'forma:stats' to count them up) ---- */
   const statEl = document.getElementById('stat-products');
   if (statEl) statEl.textContent = String(products.length);
   const statOptions = document.getElementById('stat-options');
@@ -185,8 +185,12 @@
     const total = products.reduce((n, p) => n + (p.parts || []).reduce((m, part) => m + (part.options || []).length, 0), 0);
     statOptions.textContent = `${total}`;
   }
+  window.dispatchEvent(new CustomEvent('forma:stats'));
 
-  if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  /* scroll reveal fallback for the steps — only when GSAP is NOT available
+     (with GSAP, home.js handles these via ScrollTrigger.batch) */
+  const HAS_GSAP = typeof window.gsap !== 'undefined' && typeof window.ScrollTrigger !== 'undefined';
+  if (!HAS_GSAP && 'IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
         if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
